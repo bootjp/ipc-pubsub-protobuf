@@ -2,19 +2,17 @@ package daemon
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"net"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"sync"
-	"syscall"
 
 	client "github.com/bootjp/ipc-pubsub-protobuf/build"
 )
 
 const producerSock = "ipc-pubsub-producer.sock"
-const consumerSock = "ipc-pubsub-consumer.sock"
 
 type Consumer struct {
 	con *net.UnixAddr
@@ -31,15 +29,16 @@ func NewDaemon() *Daemon {
 	return &Daemon{}
 }
 
-func (d *Daemon) serviceProducer(fd net.Conn, ch chan client.Message) {
+func (d *Daemon) serviceProducer(fd net.Conn, ch chan client.MessageContainer) {
 	bufReader := bufio.NewReader(fd)
 	scanner := bufio.NewScanner(bufReader)
+
 	for scanner.Scan() {
 		b := scanner.Bytes()
 		if len(b) == 0 {
 			continue
 		}
-
+		fmt.Println(string(b))
 	}
 }
 
@@ -53,60 +52,73 @@ func (d *Daemon) registerConsumer(path string) {
 	d.consumers = append(d.consumers, Consumer{addr})
 }
 
-func (d *Daemon) serviceConsumer(fd net.Conn, ch chan client.Message) {
+func (d *Daemon) serviceConsumer(fd net.Conn, ch chan client.MessageContainer) {
 
-	for v := range ch {
+	for _ = range ch {
 		for _, c := range d.consumers {
 			conn, err := net.DialUnix("unix", nil, c.con)
 			if err != nil {
 				log.Println(err)
+				continue
 			}
 
-			_, err = conn.Write([]byte(v.ProtoReflect()))
+			err = conn.Close()
 			if err != nil {
 				log.Println(err)
 			}
-			conn.Close()
 		}
 	}
-
 }
 
 func (d *Daemon) Start() error {
 
 	pSockPath := filepath.Join(os.TempDir(), producerSock)
-	cSockPath := filepath.Join(os.TempDir(), consumerSock)
+	//cSockPath := filepath.Join(os.TempDir(), consumerSock)
 
 	pcon, err := net.Listen("unix", pSockPath)
 	if err != nil {
 		return err
 	}
-
-	ccon, err := net.Listen("unix", cSockPath)
-	if err != nil {
-		return err
-	}
-
-	// todo 個別に
 	defer func() {
-		_ = os.Remove(filepath.Join(os.TempDir(), producerSock))
-		_ = os.Remove(filepath.Join(os.TempDir(), consumerSock))
+		err = os.Remove(pSockPath)
+		if err != nil {
+			fmt.Println(err)
+		}
+
 	}()
 
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
-	ch := make(chan client.Message)
-	for {
-		pfd, err := pcon.Accept()
-		if err != nil {
-			return nil
-		}
-		go d.serviceProducer(pfd, ch)
+	//ccon, err := net.Listen("unix", cSockPath)
+	//if err != nil {
+	//	return err
+	//}
+	//defer func() {
+	//	err = os.Remove(cSockPath)
+	//	if err != nil {
+	//		log.Println(err)
+	//	}
+	//
+	//}()
 
-		cfd, err := ccon.Accept()
-		if err != nil {
-			return nil
-		}
-		go d.serviceProducer(cfd, ch)
+	//sigc := make(chan os.Signal, 1)
+	//signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
+	// todo handling signal
+
+	wg := &sync.WaitGroup{}
+	ch := make(chan client.MessageContainer)
+	pfd, err := pcon.Accept()
+
+	if err != nil {
+		return nil
 	}
+	go d.serviceProducer(pfd, ch)
+	//
+	//cfd, err := ccon.Accept()
+	//if err != nil {
+	//	return nil
+	//}
+	//go d.serviceProducer(cfd, ch)
+
+	wg.Add(1)
+	wg.Wait()
+	return nil
 }

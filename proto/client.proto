@@ -1,24 +1,17 @@
-
 syntax = "proto3";
-
-service ConsumerService {
-  rpc EnQueue(Message) returns (Status);
-}
-
-message Consumer {
-  repeated Message Queue = 1;
-}
 
 message Status {
   bool success = 1;
 }
 
-message Message {
-  enum Status {
-    UNPROCESSED = 0;
-    PROCESSING = 1;
-    PROCESSED = 2;
+message MessageContainer {
+  message Message {
+    string Dummy = 2;
+    enum Status {
+      UNPROCESSED = 0;
+      PROCESSING = 1;
+      PROCESSED = 2;
+    }
   }
 }
-
 

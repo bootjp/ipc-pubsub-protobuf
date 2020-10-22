@@ -1,13 +1,14 @@
 package main
 
 import (
-	"github.com/bootjp/ipc-pubsub-protobuf/daemon"
 	"log"
+
+	"github.com/bootjp/ipc-pubsub-protobuf/daemon"
 )
 
 func main() {
 	err := daemon.NewDaemon().Start()
 	if err != nil {
-		log.Fatal()
+		log.Fatal(err)
 	}
 }
