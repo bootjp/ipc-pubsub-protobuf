@@ -103,22 +103,15 @@ func (d *Daemon) Start() error {
 	//signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 	// todo handling signal
 
-	wg := &sync.WaitGroup{}
 	ch := make(chan client.MessageContainer)
-	pfd, err := pcon.Accept()
 
-	if err != nil {
-		return nil
+	for {
+		pfd, err := pcon.Accept()
+
+		if err != nil {
+			return nil
+		}
+		go d.serviceProducer(pfd, ch)
 	}
-	go d.serviceProducer(pfd, ch)
-	//
-	//cfd, err := ccon.Accept()
-	//if err != nil {
-	//	return nil
-	//}
-	//go d.serviceProducer(cfd, ch)
 
-	wg.Add(1)
-	wg.Wait()
-	return nil
 }
