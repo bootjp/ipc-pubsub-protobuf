@@ -18,7 +18,7 @@ type Parser struct {
 type CommandName int
 
 const (
-	SUBSCRIBE CommandName = iota
+	SUBSCRIBE CommandName = iota + 10
 	UNSUBSCRIBE
 	PUBLISH
 	UnknownCommand = 100
@@ -112,7 +112,23 @@ func (p *Parser) parseChannelName(b []byte, length int) (string, error) {
 }
 
 func (p *Parser) IsValid() bool {
-	return len(p.errors) == 0
+	if len(p.errors) != 0 {
+		return false
+	}
+
+	if p.command.Name == 0 {
+		return false
+	}
+
+	if p.command.Channel == "" {
+		return false
+	}
+
+	if p.command.Name == PUBLISH && p.command.Data == nil {
+		return false
+	}
+
+	return true
 }
 
 func (p *Parser) GetError() []error {
