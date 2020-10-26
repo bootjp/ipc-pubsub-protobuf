@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"errors"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ const (
 
 type Command struct {
 	Name    CommandName
-	Channel string
+	Channel []string
 	Data    []byte
 }
 
@@ -72,9 +73,22 @@ func (p *Parser) Add(b []byte) {
 		p.command.Name = p.parseCommandName(commands[0])
 
 	case 2:
-		p.command.Channel, err = p.parseChannelName(b, p.channelLength)
-		if err != nil {
-			p.errors = append(p.errors, err)
+
+		commands := bytes.Split(b, []byte(" "))
+
+		for _, cm := range commands {
+			if len(commands) < 0 {
+				p.errors = append(p.errors, err)
+				break
+			}
+
+			ch, err := p.parseChannelName(cm, p.channelLength)
+			if err != nil {
+				p.errors = append(p.errors, err)
+				break
+			}
+
+			p.command.Channel = append(p.command.Channel, ch)
 		}
 
 	case 3:
@@ -99,6 +113,7 @@ func (p *Parser) parseCommandName(b string) CommandName {
 	}
 
 	return UnknownCommand
+
 }
 
 var ErrInvalidChannel = errors.New("invalid channel name length")
@@ -120,7 +135,7 @@ func (p *Parser) IsValid() bool {
 		return false
 	}
 
-	if p.command.Channel == "" {
+	if len(p.command.Channel) == 0 {
 		return false
 	}
 

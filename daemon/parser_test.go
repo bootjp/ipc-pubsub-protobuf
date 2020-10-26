@@ -53,9 +53,9 @@ func TestChannelName(t *testing.T) {
 			false,
 		},
 		{
-			[]byte("PLAYER JOIN"),
-			len("PLAYER JOIN"),
-			"PLAYER JOIN",
+			[]byte("PLAYER_JOIN"),
+			len("PLAYER_JOIN"),
+			"PLAYER_JOIN",
 			false,
 		},
 		{
@@ -97,7 +97,7 @@ func TestParse(t *testing.T) {
 			[]byte("PUBLISH 3 10\r\nMES\r\nPROTO_DATA\r\n"),
 			&Command{
 				PUBLISH,
-				"MES",
+				[]string{"MES"},
 				[]byte("PROTO_DATA"),
 			},
 			true,
@@ -107,7 +107,7 @@ func TestParse(t *testing.T) {
 			[]byte("PUBLISH 3 11\r\nddddd\r\nPROTO_DATA\r\n"),
 			&Command{
 				PUBLISH,
-				"ddddd",
+				[]string{"ddddd"},
 				[]byte("PROTO_DATA"),
 			},
 			false,
@@ -117,7 +117,7 @@ func TestParse(t *testing.T) {
 			[]byte("PUBLISH 4 11\r\nddddd\r\nPROTO_DATA\r\n"),
 			&Command{
 				PUBLISH,
-				"dddd",
+				[]string{"dddd"},
 				[]byte("PROTO_DATA"),
 			},
 			false,
@@ -128,7 +128,7 @@ func TestParse(t *testing.T) {
 			[]byte("SUBSCRIBE 5\r\nddddd\r\n"),
 			&Command{
 				SUBSCRIBE,
-				"ddddd",
+				[]string{"ddddd"},
 				nil,
 			},
 			true,
@@ -138,12 +138,23 @@ func TestParse(t *testing.T) {
 			[]byte("UNSUBSCRIBE 4\r\nxxxx\r\n"),
 			&Command{
 				UNSUBSCRIBE,
-				"xxxx",
+				[]string{"xxxx"},
 				nil,
 			},
 			true,
 			false,
 		},
+		//// multiple channel test
+		//{
+		//	[]byte("SUBSCRIBE 4,4\r\nxxxx xxxx\r\n"),
+		//	&Command{
+		//		UNSUBSCRIBE,
+		//		[]string{"xxxx xxxx"},
+		//		nil,
+		//	},
+		//	true,
+		//	false,
+		//},
 	}
 	for _, td := range testData {
 		p := NewParser()
