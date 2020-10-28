@@ -36,55 +36,6 @@ func TestCommandName(t *testing.T) {
 	}
 }
 
-func TestChannelName(t *testing.T) {
-
-	p := Parser{}
-
-	testData := []struct {
-		send   []byte
-		length int
-		want   string
-		hasErr bool
-	}{
-		{
-			[]byte("Message"),
-			len("Message"),
-			"Message",
-			false,
-		},
-		{
-			[]byte("PLAYER_JOIN"),
-			len("PLAYER_JOIN"),
-			"PLAYER_JOIN",
-			false,
-		},
-		{
-			[]byte("Message"),
-			len("Message"),
-			"Message",
-			false,
-		},
-		{
-			[]byte("Message"),
-			len("Messag"),
-			"",
-			true,
-		},
-		{
-			[]byte("Messag"),
-			len("Messagaaa"),
-			"",
-			true,
-		},
-	}
-
-	for _, td := range testData {
-		if got, err := p.parseChannelName(td.send, td.length); got != td.want || (err != nil) != td.hasErr {
-			t.Errorf("channel name miss match expected %v got %v hasError %v", td.want, got, err != nil)
-		}
-	}
-}
-
 func TestParse(t *testing.T) {
 
 	testData := []struct {
@@ -94,7 +45,7 @@ func TestParse(t *testing.T) {
 		hasErr bool
 	}{
 		{
-			[]byte("PUBLISH 3 10\r\nMES\r\nPROTO_DATA\r\n"),
+			[]byte("+PUBLISH MES\r\n$10\r\nPROTO_DATA\r\n"),
 			&Command{
 				PUBLISH,
 				[]string{"MES"},
@@ -103,29 +54,9 @@ func TestParse(t *testing.T) {
 			true,
 			false,
 		},
-		{
-			[]byte("PUBLISH 3 11\r\nddddd\r\nPROTO_DATA\r\n"),
-			&Command{
-				PUBLISH,
-				[]string{"ddddd"},
-				[]byte("PROTO_DATA"),
-			},
-			false,
-			true,
-		},
-		{
-			[]byte("PUBLISH 4 11\r\nddddd\r\nPROTO_DATA\r\n"),
-			&Command{
-				PUBLISH,
-				[]string{"dddd"},
-				[]byte("PROTO_DATA"),
-			},
-			false,
-			true,
-		},
 
 		{
-			[]byte("SUBSCRIBE 5\r\nddddd\r\n"),
+			[]byte("+SUBSCRIBE ddddd\r\n"),
 			&Command{
 				SUBSCRIBE,
 				[]string{"ddddd"},
@@ -135,7 +66,7 @@ func TestParse(t *testing.T) {
 			false,
 		},
 		{
-			[]byte("UNSUBSCRIBE 4\r\nxxxx\r\n"),
+			[]byte("+UNSUBSCRIBE xxxx\r\n"),
 			&Command{
 				UNSUBSCRIBE,
 				[]string{"xxxx"},
@@ -144,9 +75,9 @@ func TestParse(t *testing.T) {
 			true,
 			false,
 		},
-		//// multiple channel test
+		// multiple channel test
 		//{
-		//	[]byte("SUBSCRIBE 4,4\r\nxxxx xxxx\r\n"),
+		//	[]byte("+SUBSCRIBE \r\nxxxx xxxx\r\n"),
 		//	&Command{
 		//		UNSUBSCRIBE,
 		//		[]string{"xxxx xxxx"},

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 )
 
@@ -29,9 +30,7 @@ type Command struct {
 	Data    []byte
 }
 
-var ErrCommandLengthTooBig = errors.New("command name is too big")
 var ErrCommandLengthTooMin = errors.New("command name is too min")
-var ErrInvalidCommandNameArgs = errors.New("command name args is missing")
 var ErrInvalidLength = errors.New("invalid specify length")
 
 func NewParser() *Parser {
@@ -41,77 +40,38 @@ func NewParser() *Parser {
 }
 
 func (p *Parser) Add(b []byte) {
+	p.dataStage++
 
 	if len(b) == 0 {
 		p.errors = append(p.errors, ErrCommandLengthTooMin)
 		return
 	}
 
-	switch string(b[0]) {
-	case "+": // simple string
-	case "-": // error
-	case ":": // integer
-	case "$": // bulk string
-	case "*": // arrays
+	s := string(b)
+	first := string(s[0])
+	switch {
+	case first == "+" && p.dataStage == 1: // commands
+		commands := strings.Fields(s)
+		if len(commands) < 2 {
+			p.errors = append(p.errors, ErrCommandLengthTooMin)
+			return
+		}
+
+		p.command.Name = p.parseCommandName(commands[0][1:])
+		p.command.Channel = commands[1:]
+
+	case first == "$" && p.dataStage == 1: // bulk string
+		n, err := strconv.Atoi(s)
+		if n < 0 && err != nil {
+			p.errors = append(p.errors, ErrInvalidLength)
+			return
+		}
+		p.command.Data = make([]byte, n)
+	case p.dataStage == 3:
+		p.command.Data = b
+	default:
 
 	}
-	//
-	//p.dataStage++
-	//
-	//var err error
-	//switch p.dataStage {
-	//case 1:
-	//	commands := strings.Fields(string(b))
-	//
-	//	// rejected invalid big command.
-	//	if len(commands[0]) > 30 {
-	//		p.errors = append(p.errors, ErrCommandLengthTooBig)
-	//	}
-	//
-	//	// required command CHANNEL length and DATA length.
-	//	if len(commands) < 2 {
-	//		p.errors = append(p.errors, ErrInvalidCommandNameArgs)
-	//	}
-	//
-	//	p.channelLength, err = strconv.Atoi(commands[1])
-	//	if err != nil {
-	//		p.errors = append(p.errors, err)
-	//	}
-	//
-	//	if len(commands) == 3 {
-	//		p.dataLength, err = strconv.Atoi(commands[2])
-	//		if err != nil {
-	//			p.errors = append(p.errors, err)
-	//		}
-	//	}
-	//	p.command.Name = p.parseCommandName(commands[0])
-	//
-	//case 2:
-	//
-	//	commands := bytes.Split(b, []byte(" "))
-	//
-	//	for _, cm := range commands {
-	//		if len(commands) < 0 {
-	//			p.errors = append(p.errors, err)
-	//			break
-	//		}
-	//
-	//		ch, err := p.parseChannelName(cm, p.channelLength)
-	//		if err != nil {
-	//			p.errors = append(p.errors, err)
-	//			break
-	//		}
-	//
-	//		p.command.Channel = append(p.command.Channel, ch)
-	//	}
-	//
-	//case 3:
-	//
-	//	if len(b) != p.dataLength {
-	//		p.errors = append(p.errors, ErrInvalidLength)
-	//	}
-	//	p.command.Data = b[:p.dataLength]
-	//}
 
 }
 
@@ -128,16 +88,6 @@ func (p *Parser) parseCommandName(b string) CommandName {
 
 	return UnknownCommand
 
-}
-
-var ErrInvalidChannel = errors.New("invalid channel name length")
-
-func (p *Parser) parseChannelName(b []byte, length int) (string, error) {
-	if len(b) != length {
-		return "", ErrInvalidChannel
-	}
-
-	return string(b[:length]), nil
 }
 
 func (p *Parser) IsValid() bool {
