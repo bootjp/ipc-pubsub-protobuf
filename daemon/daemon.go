@@ -2,14 +2,14 @@ package daemon
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"path/filepath"
 	"sync"
-
-	client "github.com/bootjp/ipc-pubsub-protobuf/build"
+	"time"
 )
 
 const producerSock = "ipc-pubsub-producer.sock"
@@ -20,7 +20,7 @@ type Consumer struct {
 
 type Daemon struct {
 	sync.Mutex
-	consumers    []Consumer
+	consumers    []*conn
 	produceSock  net.Conn
 	consumerSock net.Conn
 }
@@ -29,44 +29,84 @@ func NewDaemon() *Daemon {
 	return &Daemon{}
 }
 
-func (d *Daemon) serviceProducer(fd net.Conn, ch chan client.MessageContainer) {
-	bufReader := bufio.NewReader(fd)
-	scanner := bufio.NewScanner(bufReader)
+type conn struct {
+	mu   sync.Mutex
+	conn net.Conn
 
-	for scanner.Scan() {
-		b := scanner.Bytes()
-		if len(b) == 0 {
-			continue
+	readTimeout time.Duration
+	br          *bufio.Reader
+	bw          *bufio.Writer
+}
+
+var ErrInvalidProtocol = errors.New("invalid commands %v")
+
+func (c *conn) ReadCommand() (*Command, error) {
+	p := NewParser()
+	for i := 0; i < 3; i++ {
+		data, _, err := c.br.ReadLine()
+		if err != nil {
+			return nil, ErrInvalidProtocol
 		}
-		fmt.Println(string(b))
+		p.Add(data)
+		if p.command.Name != PUBLISH {
+			break
+		}
+	}
+	if !p.IsValid() {
+		var err error
+		// todo fix
+
+		for _, e := range p.errors {
+			err = errors.Unwrap(e)
+		}
+		return nil, err
+	}
+
+	return p.command, nil
+}
+
+func NewConn(c net.Conn) *conn {
+	return &conn{
+		mu:   sync.Mutex{},
+		conn: c,
+		bw:   bufio.NewWriter(c),
+		br:   bufio.NewReader(c),
 	}
 }
 
-func (d *Daemon) registerConsumer(path string) {
-	addr, err := net.ResolveUnixAddr("unix", path)
+func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan *Command) {
+
+	c := NewConn(conn_)
+	command, err := c.ReadCommand()
 	if err != nil {
+		log.Println(err)
 	}
-	d.Lock()
-	defer d.Unlock()
 
-	d.consumers = append(d.consumers, Consumer{addr})
+	if command.Name == SUBSCRIBE {
+		d.Lock()
+		d.consumers = append(d.consumers, c)
+		d.Unlock()
+	}
+
+	if command != nil {
+		fmt.Println(command)
+		ch <- command
+	}
 }
 
-func (d *Daemon) serviceConsumer(fd net.Conn, ch chan client.MessageContainer) {
+func (d *Daemon) serviceConsumer(fd net.Conn, ch chan *Command) {
 
-	for _ = range ch {
-		for _, c := range d.consumers {
-			conn, err := net.DialUnix("unix", nil, c.con)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-
-			err = conn.Close()
+	for command := range ch {
+		d.Lock()
+		for _, consumer := range d.consumers {
+			b := []byte(fmt.Sprintf("%v", command))
+			fmt.Println(b)
+			_, err := consumer.bw.Write(b)
 			if err != nil {
 				log.Println(err)
 			}
 		}
+		d.Unlock()
 	}
 }
 
@@ -103,7 +143,7 @@ func (d *Daemon) Start() error {
 	//signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 	// todo handling signal
 
-	ch := make(chan client.MessageContainer)
+	ch := make(chan *Command, 10)
 
 	for {
 		pfd, err := pcon.Accept()
@@ -112,6 +152,7 @@ func (d *Daemon) Start() error {
 			return nil
 		}
 		go d.serviceProducer(pfd, ch)
+		go d.serviceConsumer(nil, ch)
 	}
 
 }

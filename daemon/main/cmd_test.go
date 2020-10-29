@@ -2,22 +2,20 @@ package main
 
 import (
 	"fmt"
-
 	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
-	pb "github.com/bootjp/ipc-pubsub-protobuf/build"
 	_ "github.com/golang/protobuf/jsonpb"
-	"google.golang.org/protobuf/proto"
 )
 
 const producerSock = "ipc-pubsub-producer.sock"
 const consumerSock = "ipc-pubsub-consumer.sock"
 
-var breakLine = make([]byte, len("\n"))
+//var breakLine = make([]byte, len("\n"))
 
 func TestName(t *testing.T) {
 
@@ -26,40 +24,55 @@ func TestName(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 
-	conn, err := net.DialUnix("unix", nil, addr)
-	if err != nil {
-		t.Error(err)
-	}
+	wg := sync.WaitGroup{}
 
-	cmd := fmt.Sprintf("SEND PROTOBUF\n")
-	_, err = conn.Write([]byte(cmd))
+	{
+		wg.Add(1)
+		conn, err := net.DialUnix("unix", nil, addr)
+		if err != nil {
+			t.Error(err)
+		}
 
-	if err != nil {
-		log.Printf("error: %v\n", err)
-		return
-	}
+		cmd := fmt.Sprintf("+SUBSCRIBE PROTOBUF\r\n")
+		_, err = conn.Write([]byte(cmd))
 
-	m := pb.MessageContainer{}
-	//m = m.ProtoReflect()
-	mp := proto.MarshalOptions{Deterministic: true}
-	b, err := mp.Marshal(&m)
-	fmt.Println(b)
-	if err != nil {
-		t.Error(err)
-	}
+		if err != nil {
+			log.Printf("error: %v\n", err)
+			return
+		}
+		var response = make([]byte, 10)
+		_, err = conn.Read(response)
+		if err != nil {
+			t.Error(err)
+		}
 
-	_, err = conn.Write(append(b, breakLine...))
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = conn.CloseWrite()
-	if err != nil {
-		log.Printf("error: %v\n", err)
-		return
-	}
+		fmt.Println("res " + string(response))
 
-	err = conn.Close()
-	if err != nil {
-		log.Println(err)
+		err = conn.Close()
+		if err != nil {
+			log.Println(err)
+		}
+		wg.Done()
 	}
+	{
+		wg.Add(1)
+		conn, err := net.DialUnix("unix", nil, addr)
+		if err != nil {
+			t.Error(err)
+		}
+		cmd := fmt.Sprintf("+PUBLISH PROTOBUF\r\n$10\r\nPROTO_DATA\r\n")
+		_, err = conn.Write([]byte(cmd))
+
+		if err != nil {
+			log.Printf("error: %v\n", err)
+			return
+		}
+
+		err = conn.Close()
+		if err != nil {
+			log.Println(err)
+		}
+		wg.Done()
+	}
+	wg.Wait()
 }

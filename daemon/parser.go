@@ -49,14 +49,14 @@ func (p *Parser) Add(b []byte) {
 
 	s := string(b)
 	first := string(s[0])
+
 	switch {
-	case first == "+" && p.dataStage == 1: // commands
+	case first == "+" && p.dataStage == 1:
 		commands := strings.Fields(s)
 		if len(commands) < 2 {
 			p.errors = append(p.errors, ErrCommandLengthTooMin)
 			return
 		}
-
 		p.command.Name = p.parseCommandName(commands[0][1:])
 		p.command.Channel = commands[1:]
 
@@ -69,14 +69,10 @@ func (p *Parser) Add(b []byte) {
 		p.command.Data = make([]byte, n)
 	case p.dataStage == 3:
 		p.command.Data = b
-	default:
-
 	}
-
 }
 
 func (p *Parser) parseCommandName(b string) CommandName {
-
 	switch strings.ToUpper(b) {
 	case "SUBSCRIBE":
 		return SUBSCRIBE
@@ -87,7 +83,6 @@ func (p *Parser) parseCommandName(b string) CommandName {
 	}
 
 	return UnknownCommand
-
 }
 
 func (p *Parser) IsValid() bool {
