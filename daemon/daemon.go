@@ -40,12 +40,12 @@ type conn struct {
 
 var ErrInvalidProtocol = errors.New("invalid commands %v")
 
-func (c *conn) ReadCommand() (*Command, error) {
+func (c *conn) ReadCommand() (*Command, []byte, error) {
 	p := NewParser()
 	for i := 0; i < 3; i++ {
 		data, _, err := c.br.ReadLine()
 		if err != nil {
-			return nil, ErrInvalidProtocol
+			return nil, nil, ErrInvalidProtocol
 		}
 		p.Add(data)
 		if p.command.Name != PUBLISH {
@@ -59,10 +59,10 @@ func (c *conn) ReadCommand() (*Command, error) {
 		for _, e := range p.errors {
 			err = errors.Unwrap(e)
 		}
-		return nil, err
+		return nil, nil, err
 	}
 
-	return p.command, nil
+	return p.command, p.rowData, nil
 }
 
 func NewConn(c net.Conn) *conn {
@@ -74,10 +74,10 @@ func NewConn(c net.Conn) *conn {
 	}
 }
 
-func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan *Command) {
+func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan []byte) {
 
 	c := NewConn(conn_)
-	command, err := c.ReadCommand()
+	command, raw, err := c.ReadCommand()
 	if err != nil {
 		log.Println(err)
 	}
@@ -90,18 +90,19 @@ func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan *Command) {
 
 	if command != nil {
 		fmt.Println(command)
-		ch <- command
+		ch <- raw
 	}
 }
 
-func (d *Daemon) serviceConsumer(fd net.Conn, ch chan *Command) {
+func (d *Daemon) serviceConsumer(fd net.Conn, ch chan []byte) {
 
 	for command := range ch {
 		d.Lock()
 		for _, consumer := range d.consumers {
-			b := []byte(fmt.Sprintf("%v", command))
-			fmt.Println(b)
-			_, err := consumer.bw.Write(b)
+			fmt.Printf("sender: %v\n", command)
+			//bytes.Buffer.
+			//err := binary.Write(consumer.conn, binary.LittleEndian, command)
+			_, err := consumer.conn.Write(append(command, []byte("\r\n")...))
 			if err != nil {
 				log.Println(err)
 			}
@@ -143,7 +144,7 @@ func (d *Daemon) Start() error {
 	//signal.Notify(sigc, os.Interrupt, syscall.SIGTERM)
 	// todo handling signal
 
-	ch := make(chan *Command, 10)
+	ch := make(chan []byte, 10)
 
 	for {
 		pfd, err := pcon.Accept()

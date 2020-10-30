@@ -13,6 +13,7 @@ type Parser struct {
 	command       *Command
 	channelLength int
 	dataLength    int
+	rowData       []byte
 }
 
 type CommandName int
@@ -41,6 +42,7 @@ func NewParser() *Parser {
 
 func (p *Parser) Add(b []byte) {
 	p.dataStage++
+	p.rowData = b
 
 	if len(b) == 0 {
 		p.errors = append(p.errors, ErrCommandLengthTooMin)
@@ -111,4 +113,7 @@ func (p *Parser) GetError() []error {
 
 func (p *Parser) GetCommand() *Command {
 	return p.command
+}
+func (p *Parser) GetRowData() []byte {
+	return p.rowData
 }

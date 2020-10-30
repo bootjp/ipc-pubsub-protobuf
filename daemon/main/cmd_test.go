@@ -40,13 +40,13 @@ func TestName(t *testing.T) {
 			log.Printf("error: %v\n", err)
 			return
 		}
-		var response = make([]byte, 10)
-		_, err = conn.Read(response)
+		buf := make([]byte, 4000)
+		_, err = conn.Read(buf)
+
 		if err != nil {
 			t.Error(err)
 		}
-
-		fmt.Println("res " + string(response))
+		fmt.Printf("%v\n", buf)
 
 		err = conn.Close()
 		if err != nil {
@@ -73,6 +73,7 @@ func TestName(t *testing.T) {
 			log.Println(err)
 		}
 		wg.Done()
+		fmt.Println("sender done")
 	}
 	wg.Wait()
 }
