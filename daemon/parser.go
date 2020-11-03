@@ -10,7 +10,7 @@ type Parser struct {
 	dataStage     int
 	hasError      bool
 	errors        []error
-	command       *Command
+	Command       *Command
 	channelLength int
 	dataLength    int
 	rowData       []byte
@@ -36,13 +36,13 @@ var ErrInvalidLength = errors.New("invalid specify length")
 
 func NewParser() *Parser {
 	return &Parser{
-		command: &Command{},
+		Command: &Command{},
 	}
 }
 
 func (p *Parser) Add(b []byte) {
 	p.dataStage++
-	p.rowData = b
+	p.rowData = append(p.rowData, append(b, []byte("\r\n")...)...)
 
 	if len(b) == 0 {
 		p.errors = append(p.errors, ErrCommandLengthTooMin)
@@ -59,8 +59,8 @@ func (p *Parser) Add(b []byte) {
 			p.errors = append(p.errors, ErrCommandLengthTooMin)
 			return
 		}
-		p.command.Name = p.parseCommandName(commands[0][1:])
-		p.command.Channel = commands[1:]
+		p.Command.Name = p.parseCommandName(commands[0][1:])
+		p.Command.Channel = commands[1:]
 
 	case first == "$" && p.dataStage == 1: // bulk string
 		n, err := strconv.Atoi(s)
@@ -68,9 +68,9 @@ func (p *Parser) Add(b []byte) {
 			p.errors = append(p.errors, ErrInvalidLength)
 			return
 		}
-		p.command.Data = make([]byte, n)
+		p.Command.Data = make([]byte, n)
 	case p.dataStage == 3:
-		p.command.Data = b
+		p.Command.Data = b
 	}
 }
 
@@ -92,15 +92,15 @@ func (p *Parser) IsValid() bool {
 		return false
 	}
 
-	if p.command.Name == 0 {
+	if p.Command.Name == 0 {
 		return false
 	}
 
-	if len(p.command.Channel) == 0 {
+	if len(p.Command.Channel) == 0 {
 		return false
 	}
 
-	if p.command.Name == PUBLISH && p.command.Data == nil {
+	if p.Command.Name == PUBLISH && p.Command.Data == nil {
 		return false
 	}
 
@@ -112,7 +112,7 @@ func (p *Parser) GetError() []error {
 }
 
 func (p *Parser) GetCommand() *Command {
-	return p.command
+	return p.Command
 }
 func (p *Parser) GetRowData() []byte {
 	return p.rowData

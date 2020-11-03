@@ -31,7 +31,7 @@ func TestCommandName(t *testing.T) {
 
 	for _, td := range testData {
 		if got := p.parseCommandName(td.send); got != td.want {
-			t.Errorf("command miss match expected publish got %v", got)
+			t.Errorf("Command miss match expected publish got %v", got)
 		}
 	}
 }
@@ -76,16 +76,16 @@ func TestParse(t *testing.T) {
 			false,
 		},
 		// multiple channel test
-		//{
-		//	[]byte("+SUBSCRIBE \r\nxxxx xxxx\r\n"),
-		//	&Command{
-		//		UNSUBSCRIBE,
-		//		[]string{"xxxx xxxx"},
-		//		nil,
-		//	},
-		//	true,
-		//	false,
-		//},
+		{
+			[]byte("+SUBSCRIBE xxxx xxxx\r\n"),
+			&Command{
+				SUBSCRIBE,
+				[]string{"xxxx", "xxxx"},
+				nil,
+			},
+			true,
+			false,
+		},
 	}
 	for _, td := range testData {
 		p := NewParser()

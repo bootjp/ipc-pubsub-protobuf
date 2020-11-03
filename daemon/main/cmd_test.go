@@ -8,14 +8,12 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	_ "github.com/golang/protobuf/jsonpb"
 )
 
 const producerSock = "ipc-pubsub-producer.sock"
-const consumerSock = "ipc-pubsub-consumer.sock"
-
-//var breakLine = make([]byte, len("\n"))
 
 func TestName(t *testing.T) {
 
@@ -25,9 +23,8 @@ func TestName(t *testing.T) {
 	}
 
 	wg := sync.WaitGroup{}
-
-	{
-		wg.Add(1)
+	wg.Add(2)
+	go func() {
 		conn, err := net.DialUnix("unix", nil, addr)
 		if err != nil {
 			t.Error(err)
@@ -40,27 +37,46 @@ func TestName(t *testing.T) {
 			log.Printf("error: %v\n", err)
 			return
 		}
-		buf := make([]byte, 4000)
+
+		fmt.Println("waiting data")
+
+		buf := make([]byte, 100)
 		_, err = conn.Read(buf)
 
 		if err != nil {
 			t.Error(err)
 		}
+		fmt.Println("receive")
 		fmt.Printf("%v\n", buf)
+		fmt.Printf("%s\n", buf)
+
+		buf = make([]byte, 100)
+		_, err = conn.Read(buf)
+
+		if err != nil {
+			t.Error(err)
+		}
+		fmt.Println("receive data")
+		fmt.Printf("%v\n", buf)
+		fmt.Printf("%s\n", buf)
 
 		err = conn.Close()
 		if err != nil {
 			log.Println(err)
 		}
 		wg.Done()
-	}
-	{
-		wg.Add(1)
+	}()
+	go func() {
+		time.Sleep(1 * time.Second)
 		conn, err := net.DialUnix("unix", nil, addr)
 		if err != nil {
 			t.Error(err)
 		}
 		cmd := fmt.Sprintf("+PUBLISH PROTOBUF\r\n$10\r\nPROTO_DATA\r\n")
+		fmt.Println("write")
+		fmt.Printf("%v\n", []byte(cmd))
+		fmt.Printf("%s\n", []byte(cmd))
+
 		_, err = conn.Write([]byte(cmd))
 
 		if err != nil {
@@ -68,12 +84,12 @@ func TestName(t *testing.T) {
 			return
 		}
 
-		err = conn.Close()
+		err = conn.CloseWrite()
 		if err != nil {
 			log.Println(err)
 		}
 		wg.Done()
 		fmt.Println("sender done")
-	}
+	}()
 	wg.Wait()
 }
