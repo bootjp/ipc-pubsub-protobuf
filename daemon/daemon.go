@@ -50,10 +50,12 @@ type IPCConn struct {
 
 var ErrInvalidProtocol = errors.New("invalid commands %v")
 
+const maxPhase = 3
+
 func (c *IPCConn) ReadCommand() (*Command, []byte, error) {
 	p := NewParser()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < maxPhase; i++ {
 		data, _, err := c.Br.ReadLine()
 		if err != nil {
 			fmt.Println(err)
@@ -132,7 +134,9 @@ func (d *Daemon) serviceConsumer(ch chan []byte) {
 	for command := range ch {
 		d.Lock()
 		commands := strings.Fields(string(command))
+
 		fmt.Println("channel " + commands[1])
+
 		conns, ok := d.consumers.Channel[commands[1]]
 		if !ok {
 			continue
@@ -154,6 +158,7 @@ func (d *Daemon) Start() error {
 
 	listener, err := net.Listen("unix", d.sockPath)
 	if err != nil {
+		_ = os.Remove(d.sockPath)
 		return err
 	}
 	defer func() {
