@@ -25,10 +25,22 @@ const (
 	UnknownCommand = 100
 )
 
+var CommandMaps = map[CommandName]string{
+	SUBSCRIBE:   "SUBSCRIBE",
+	UNSUBSCRIBE: "UNSUBSCRIBE",
+	PUBLISH:     "PUBLISH",
+}
+
 type Command struct {
 	Name    CommandName
 	Channel []string
 	Data    []byte
+}
+
+func (c *Command) GetByte() []byte {
+	name := CommandMaps[c.Name]
+	s := []byte(name + " " + strings.Join(c.Channel, " "))
+	return append(s, c.Data...)
 }
 
 var ErrCommandLengthTooMin = errors.New("command name is too min")
@@ -42,7 +54,6 @@ func NewParser() *Parser {
 
 func (p *Parser) Add(b []byte) {
 	p.dataStage++
-	p.rowData = append(p.rowData, append(b, []byte("\r\n")...)...)
 
 	if len(b) == 0 {
 		p.errors = append(p.errors, ErrCommandLengthTooMin)
@@ -114,6 +125,7 @@ func (p *Parser) GetError() []error {
 func (p *Parser) GetCommand() *Command {
 	return p.Command
 }
+
 func (p *Parser) GetRowData() []byte {
-	return p.rowData
+	return p.Command.GetByte()
 }

@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -48,18 +47,16 @@ type IPCConn struct {
 	Bw          *bufio.Writer
 }
 
-var ErrInvalidProtocol = errors.New("invalid commands %v")
-
 const maxPhase = 3
 
-func (c *IPCConn) ReadCommand() (*Command, []byte, error) {
+func (c *IPCConn) ReadCommand() (*Command, error) {
 	p := NewParser()
 
 	for i := 0; i < maxPhase; i++ {
 		data, _, err := c.Br.ReadLine()
 		if err != nil {
 			fmt.Println(err)
-			return nil, nil, ErrInvalidProtocol
+			return nil, err
 		}
 		p.Add(data)
 		if p.Command.Name != PUBLISH {
@@ -71,10 +68,10 @@ func (c *IPCConn) ReadCommand() (*Command, []byte, error) {
 		for _, e := range p.errors {
 			err = fmt.Errorf("any func: %w", e)
 		}
-		return nil, nil, err
+		return nil, err
 	}
 
-	return p.Command, p.rowData, nil
+	return p.Command, nil
 }
 
 func NewConn(c net.Conn) *IPCConn {
@@ -89,7 +86,7 @@ func NewConn(c net.Conn) *IPCConn {
 func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan []byte) {
 
 	c := NewConn(conn_)
-	command, raw, err := c.ReadCommand()
+	command, err := c.ReadCommand()
 	if err != nil {
 		log.Println(err)
 	}
@@ -126,11 +123,10 @@ func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan []byte) {
 		}
 		d.Unlock()
 	}
-	ch <- raw
+	ch <- command.GetByte()
 }
 
 func (d *Daemon) serviceConsumer(ch chan []byte) {
-
 	for command := range ch {
 		d.Lock()
 		commands := strings.Fields(string(command))
@@ -155,19 +151,19 @@ func (d *Daemon) serviceConsumer(ch chan []byte) {
 func (d *Daemon) Start() error {
 
 	d.sockPath = filepath.Join(os.TempDir(), producerSock)
-
 	listener, err := net.Listen("unix", d.sockPath)
+
 	if err != nil {
 		_ = os.Remove(d.sockPath)
 		return err
 	}
+
 	defer func() {
 		fmt.Println("deleting sockets" + d.sockPath)
 		err = os.Remove(d.sockPath)
 		if err != nil {
 			fmt.Println(err)
 		}
-
 	}()
 
 	sig := make(chan os.Signal, 1)
@@ -179,13 +175,12 @@ func (d *Daemon) Start() error {
 		pfd, err := listener.Accept()
 
 		if err != nil {
-			pfd.Close()
+			_ = pfd.Close()
 		} else {
 			go d.serviceProducer(pfd, ch)
 			go d.serviceConsumer(ch)
 		}
 	}
-
 }
 
 func (d *Daemon) signalHandler(c chan os.Signal) {

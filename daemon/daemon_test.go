@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestName(t *testing.T) {
+func TestData(t *testing.T) {
 	addr, err := net.ResolveUnixAddr("unix", filepath.Join(os.TempDir(), producerSock))
 	if err != nil {
 		t.Errorf("%v", err)
