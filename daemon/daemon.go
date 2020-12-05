@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -83,7 +82,7 @@ func NewConn(c net.Conn) *IPCConn {
 	}
 }
 
-func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan []byte) {
+func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan *Command) {
 
 	c := NewConn(conn_)
 	command, err := c.ReadCommand()
@@ -123,27 +122,28 @@ func (d *Daemon) serviceProducer(conn_ net.Conn, ch chan []byte) {
 		}
 		d.Unlock()
 	}
-	ch <- command.GetByte()
+	ch <- command
 }
 
-func (d *Daemon) serviceConsumer(ch chan []byte) {
+func (d *Daemon) serviceConsumer(ch chan *Command) {
 	for command := range ch {
 		d.Lock()
-		commands := strings.Fields(string(command))
 
-		fmt.Println("channel " + commands[1])
+		for _, channels := range command.Channel {
+			fmt.Println("channel " + channels)
+			conns, ok := d.consumers.Channel[channels]
+			if !ok {
+				continue
+			}
 
-		conns, ok := d.consumers.Channel[commands[1]]
-		if !ok {
-			continue
-		}
-
-		for _, conn := range conns {
-			_, err := conn.conn.Write(command)
-			if err != nil {
-				log.Println(err)
+			for _, conn := range conns {
+				_, err := conn.conn.Write(command.GetByte())
+				if err != nil {
+					log.Println(err)
+				}
 			}
 		}
+
 		d.Unlock()
 	}
 }
@@ -169,7 +169,7 @@ func (d *Daemon) Start() error {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	go d.signalHandler(sig)
-	ch := make(chan []byte, 4000)
+	ch := make(chan *Command, 1)
 
 	for {
 		pfd, err := listener.Accept()

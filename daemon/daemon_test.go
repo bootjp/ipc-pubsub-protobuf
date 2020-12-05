@@ -44,6 +44,7 @@ func TestData(t *testing.T) {
 			if testCmdSubscribe != string(buf) {
 				t.Errorf("commands response miss match expected %v, got %v", testCmdSubscribe, buf)
 			}
+			t.Logf("%s", buf)
 		}
 		{
 			buf := make([]byte, len(testCmdData))
@@ -61,6 +62,7 @@ func TestData(t *testing.T) {
 			if testCmdData != string(buf) {
 				t.Errorf("commands response miss match expected %v, got %v", testCmdSubscribe, buf)
 			}
+			t.Logf("%s", buf)
 			wg.Done()
 		}
 	}()
